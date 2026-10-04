@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>دكان شعبي — مرحلة التسوق 🛒</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#1a0f08;font-family:'Segoe UI',Tahoma,Arial,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;max-width:640px;margin:0 auto;background:#2b1a0e;box-shadow:0 0 40px #000}
+  /* HUD top */
+  #hudTop{display:flex;gap:8px;padding:8px;align-items:stretch;z-index:20;direction:ltr}
+  #shoppingList,#progressBox{direction:rtl}
+  #shoppingList{background:rgba(255,251,235,.97);border:3px solid #8b5a2b;border-radius:14px;padding:8px 10px;min-width:172px;flex:0 0 auto;box-shadow:0 4px 0 #5d3a17}
+  #shoppingList h3{margin:0 0 6px;font-size:15px;color:#5d3a17;display:flex;align-items:center;gap:6px}
+  #shoppingList ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+  #shoppingList li{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:#4a2f14;background:#fff;border:1.5px solid #e5c98f;border-radius:10px;padding:4px 7px;transition:all .3s}
+  #shoppingList li.done{background:#dcfce7;border-color:#22c55e;color:#14532d;text-decoration:line-through}
+  #shoppingList li .box{width:18px;height:18px;border-radius:6px;border:2px solid #8b5a2b;display:flex;align-items:center;justify-content:center;font-size:13px;background:#fff;flex:0 0 18px}
+  #shoppingList li.done .box{background:#22c55e;border-color:#15803d;color:#fff}
+  #shoppingList .price{margin-inline-start:auto;font-size:12px;color:#8b5a2b}
+  #shoppingList li.done .price{color:#15803d}
+  #progressBox{flex:1;background:linear-gradient(180deg,#7c4a1e,#5d3a17);border:3px solid #d9a441;border-radius:14px;padding:8px 10px;color:#ffedd5;display:flex;flex-direction:column;justify-content:center;gap:6px}
+  #progressBox .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800}
+  #countLabel{direction:ltr;unicode-bidi:isolate}
+  #bar{height:12px;background:#3b2210;border-radius:99px;overflow:hidden;border:1px solid #d9a441}
+  #barFill{height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#a3e635);border-radius:99px;transition:width .4s}
+  #hint{font-size:11.5px;opacity:.95;line-height:1.4}
+  /* Canvas area */
+  #gameZone{position:relative;flex:1;overflow:hidden;background:#c99a5b}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:auto}
+  /* Bottom HUD */
+  #hudBottom{background:linear-gradient(180deg,#3b2210,#1a0f08);padding:8px 10px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:8px;border-top:3px solid #d9a441;z-index:20}
+  #cartPill{flex:1;background:#fffbeb;border:2px solid #d9a441;border-radius:14px;padding:7px 10px;display:flex;align-items:center;gap:8px}
+  #cartPill .ico{font-size:26px}
+  #cartPill .txt{flex:1}
+  #cartPill .txt b{display:block;font-size:13px;color:#5d3a17}
+  #cartPill .txt span{font-size:16px;font-weight:900;color:#0f766e}
+  #btnPick,#btnBuy{border:none;border-radius:14px;font-weight:900;font-family:inherit;cursor:pointer;transition:transform .1s}
+  #btnPick{background:#e5e7eb;color:#6b7280;padding:12px 14px;font-size:15px;min-width:86px}
+  #btnPick.ready{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;box-shadow:0 4px 0 #14532d;animation:pulse 1s infinite}
+  #btnPick:active{transform:scale(.95)}
+  #btnBuy{background:#57534e;color:#d6d3d1;padding:12px 16px;font-size:16px;min-width:110px}
+  #btnBuy.ready{background:linear-gradient(180deg,#f59e0b,#b45309);color:#fff;box-shadow:0 4px 0 #78350f;animation:pulse 1s infinite}
+  #btnBuy:active{transform:scale(.95)}
+  @keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.15)}}
+  /* Joystick */
+  #joy{position:absolute;bottom:86px;left:14px;width:124px;height:124px;border-radius:50%;background:rgba(0,0,0,.22);border:2px solid rgba(255,255,255,.45);z-index:15;touch-action:none}
+  #stick{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(255,251,235,.95);border:3px solid #8b5a2b;box-shadow:0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:24px}
+  #counterToast{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;font-size:13px;font-weight:800;padding:7px 14px;border-radius:99px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:30;white-space:nowrap;border:2px solid #f59e0b}
+  /* Overlays */
+  .overlay{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,10,4,.82);backdrop-filter:blur(4px)}
+  .card{background:#fffbeb;border:4px solid #8b5a2b;border-radius:22px;padding:20px 18px;max-width:420px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5);max-height:92%;overflow:auto}
+  .card h1{margin:0 0 6px;font-size:24px;color:#5d3a17}
+  .card h2{margin:0 0 10px;font-size:18px;color:#92400e}
+  .card p{font-size:14px;color:#57370f;line-height:1.7;margin:8px 0}
+  .card .shop{font-size:52px;margin:4px 0}
+  .bigBtn{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;border:none;border-radius:16px;padding:14px 26px;font-size:18px;font-weight:900;font-family:inherit;cursor:pointer;box-shadow:0 5px 0 #14532d;width:100%;margin-top:10px}
+  .bigBtn:active{transform:translateY(3px);box-shadow:none}
+  .goldBtn{background:linear-gradient(180deg,#f59e0b,#b45309);color:#fff;border:none;border-radius:16px;padding:14px 26px;font-size:18px;font-weight:900;font-family:inherit;cursor:pointer;box-shadow:0 5px 0 #78350f;width:100%;margin-top:10px}
+  .goldBtn:disabled{filter:grayscale(1);opacity:.6}
+  .listPreview{background:#fff;border:2px dashed #d9a441;border-radius:12px;padding:10px;margin:10px 0;text-align:right;font-size:14px;font-weight:700;color:#5d3a17}
+  .receipt{background:#fff;color:#111;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;text-align:left;direction:ltr;margin:10px 0;border:1px solid #ddd}
+  .hidden{display:none!important}
+  #confetti{position:absolute;inset:0;pointer-events:none;z-index:60}
+  kbd{background:#fef3c7;border:1px solid #d9a441;border-radius:6px;padding:1px 6px;font-size:12px}
+  @media (min-width:640px){#joy{bottom:96px}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hudTop">
+    <div id="shoppingList">
+      <h3>🧾 قائمة التسوق</h3>
+      <ul id="listUl"></ul>
+    </div>
+    <div id="progressBox">
+      <div class="row"><span>🛒 عربة التسوق</span><span id="countLabel">0 / 4</span></div>
+      <div id="bar"><div id="barFill"></div></div>
+      <div id="hint">اجمع الأغراض من الرفوف، ثم اذهب للكاونتر 💰</div>
+    </div>
+  </div>
+
+  <div id="gameZone">
+    <canvas id="game"></canvas>
+    <div id="joy"><div id="stick">🛒</div></div>
+    <div id="counterToast"></div>
+    <canvas id="confetti"></canvas>
+
+    <div id="startOverlay" class="overlay">
+      <div class="card">
+        <div class="shop">🏪🛒🇸🇦</div>
+        <h1>دكان شعبي</h1>
+        <h2>مرحلة التسوق — 25.50 SAR</h2>
+        <div class="listPreview" id="startList"></div>
+        <p>🎯 <b>المهمة:</b> أكمل <b>قائمة التسوق</b> أعلى اليسار بجمع المنتجات داخل العربة.<br>
+        🚶 تحرك بالعصا (أو <kbd>WASD</kbd> / الأسهم) — اقترب من المنتج واضغط <b>خذ</b> ✅<br>
+        💰 عندما تجمع كل الأغراض اذهب إلى <b>الكاونتر</b> واضغط <b>Purchase</b> لدفع <b>25.50 SAR</b> وإنهاء المرحلة!</p>
+        <button class="bigBtn" id="startBtn">ابدأ التسوق 🛒</button>
+      </div>
+    </div>
+
+    <div id="payOverlay" class="overlay hidden">
+      <div class="card">
+        <div class="shop">🧾</div>
+        <h2>الكاونتر — الدفع</h2>
+        <div class="receipt" id="receipt"></div>
+        <p>الإجمالي في الأسفل: <b id="payTotal">25.50 SAR</b></p>
+        <button class="goldBtn" id="payBtn">Purchase — ادفع الآن 💳</button>
+        <button class="bigBtn" id="continueBtn" style="background:linear-gradient(180deg,#6b7280,#374151);box-shadow:0 5px 0 #111827">تابع التسوق</button>
+      </div>
+    </div>
+
+    <div id="winOverlay" class="overlay hidden">
+      <div class="card">
+        <div class="shop">🎉🏆🎉</div>
+        <h1>أحسنت! اكتملت المرحلة ✅</h1>
+        <div class="receipt" id="winReceipt"></div>
+        <p>دفعت <b>25.50 SAR</b> بنجاح في الدكان الشعبي 🇸🇦<br>قائمة التسوق مكتملة 4/4 🛒</p>
+        <button class="bigBtn" id="replayBtn">العب مرة أخرى 🔁</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hudBottom">
+    <div id="cartPill"><div class="ico">🛒</div><div class="txt"><b>الإجمالي في العربة</b><span id="totalLabel">0.00 SAR</span></div></div>
+    <button id="btnPick">خذ 🤏</button>
+    <button id="btnBuy">Purchase 💰</button>
+  </div>
+</div>
+
+<script>
+(()=>{ "use strict";
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const zone=document.getElementById('gameZone');
+const listUl=document.getElementById('listUl'),countLabel=document.getElementById('countLabel'),
+barFill=document.getElementById('barFill'),totalLabel=document.getElementById('totalLabel'),
+btnPick=document.getElementById('btnPick'),btnBuy=document.getElementById('btnBuy'),
+hint=document.getElementById('hint'),toast=document.getElementById('counterToast');
+const startOverlay=document.getElementById('startOverlay'),payOverlay=document.getElementById('payOverlay'),winOverlay=document.getElementById('winOverlay');
+
+// --- Items: total must be 25.50 SAR ---
+const ITEMS=[
+ {id:'milk', name:'حليب', en:'Milk', emoji:'🥛', price:6.00, color:'#7dd3fc'},
+ {id:'bread',name:'خبز',  en:'Bread',emoji:'🍞', price:3.50, color:'#fbbf24'},
+ {id:'dates',name:'تمر',  en:'Dates',emoji:'🌴', price:9.00, color:'#a16207'},
+ {id:'tea',  name:'شاي',  en:'Tea',  emoji:'🍵', price:7.00, color:'#86efac'},
+];
+const DECOYS=[
+ {id:'cola', name:'كولا', emoji:'🥤'},
+ {id:'chips',name:'شيبس',emoji:'🍟'},
+ {id:'apple',name:'تفاح',emoji:'🍎'},
+];
+const TOTAL=ITEMS.reduce((s,i)=>s+i.price,0); // 25.5
+
+function fmt(n){return n.toFixed(2)+' SAR';}
+
+// Build HUD list
+function renderList(cart){
+  listUl.innerHTML='';
+  ITEMS.forEach(it=>{
+    const done=cart.includes(it.id);
+    const li=document.createElement('li'); if(done)li.className='done';
+    li.innerHTML=`<span class="box">${done?'✓':''}</span><span>${it.emoji} ${it.name}</span><span class="price">${it.price.toFixed(2)}</span>`;
+    listUl.appendChild(li);
+  });
+  countLabel.textContent=`${cart.length} / ${ITEMS.length}`;
+  barFill.style.width=(cart.length/ITEMS.length*100)+'%';
+  const sum=ITEMS.filter(i=>cart.includes(i.id)).reduce((s,i)=>s+i.price,0);
+  totalLabel.textContent=fmt(sum);
+  document.getElementById('payTotal').textContent=fmt(TOTAL);
+  const ready=cart.length===ITEMS.length;
+  btnBuy.classList.toggle('ready',ready);
+  btnPick.classList.remove('ready');
+  hint.textContent=ready?'✅ اكتملت القائمة! اذهب للكاونتر واضغط Purchase 💰':`اجمع الأغراض من الرفوف، ثم اذهب للكاونتر 💰 (${cart.length}/${ITEMS.length})`;
+}
+document.getElementById('startList').innerHTML='🧾 <b>قائمة التسوق:</b><br>'+ITEMS.map(i=>`${i.emoji} ${i.name} — ${i.price.toFixed(2)} SAR`).join('<br>')+`<br>💰 <b>الإجمالي: ${fmt(TOTAL)}</b>`;
+
+// --- World ---
+const W=480,H=620; // logical
+let DPR=1,scale=1,offX=0,offY=0;
+function resize(){
+  const r=zone.getBoundingClientRect();
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  canvas.width=r.width*DPR; canvas.height=r.height*DPR;
+  const s=Math.min(r.width/W,r.height/H);
+  scale=s*DPR; offX=(canvas.width-W*scale)/2; offY=(canvas.height-H*scale)/2;
+}
+window.addEventListener('resize',resize);
+
+// Walls / shelves / counter
+const walls=[{x:0,y:0,w:480,h:18},{x:0,y:0,w:18,h:620},{x:462,y:0,w:18,h:620},{x:0,y:602,w:480,h:18}];
+const shelves=[
+ {x:60,y:90,w:150,h:46,label:'رف ١'},
+ {x:270,y:90,w:150,h:46,label:'رف ٢'},
+ {x:60,y:200,w:150,h:46,label:'رف ٣'},
+ {x:270,y:200,w:150,h:46,label:'رف ٤'},
+ {x:60,y:310,w:150,h:46,label:'رف ٥'},
+ {x:270,y:310,w:150,h:46,label:'رف ٦'},
+];
+const counter={x:110,y:470,w:260,h:64};
+const counterZone={x:90,y:430,w:300,h:60};
+
+// Product spots on shelves
+const spots=[];
+const layout=[
+ {shelf:0,item:'milk'},{shelf:0,item:'cola'},
+ {shelf:1,item:'bread'},{shelf:1,item:'chips'},
+ {shelf:2,item:'cola'},{shelf:2,item:'dates'},
+ {shelf:3,item:'apple'},{shelf:3,item:'tea'},
+ {shelf:4,item:'bread'},{shelf:4,item:'milk'},
+ {shelf:5,item:'dates'},{shelf:5,item:'tea'},
+];
+layout.forEach((L,i)=>{
+  const sh=shelves[L.shelf];
+  const col=i%2; // two items per shelf
+  const all=[...ITEMS,...DECOYS];
+  const def=all.find(a=>a.id===L.item);
+  spots.push({x:sh.x+40+col*75,y:sh.y-14,id:def.id,name:def.name,emoji:def.emoji,
+    price:(ITEMS.find(a=>a.id===def.id)||{}).price||0,
+    required:!!ITEMS.find(a=>a.id===def.id),taken:false,bob:Math.random()*6});
+});
+
+let player={x:240,y:540,r:18,speed:165,vx:0,vy:0,face:1};
+let cart=[]; let started=false, won=false;
+let keys={}; let joyVec={x:0,y:0};
+let nearSpot=null, nearCounter=false;
+
+renderList(cart);
+
+// Input: keyboard
+window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()))e.preventDefault(); if(e.key===' '||e.key==='Enter'){tryPick();}});
+window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+
+// Joystick
+const joy=document.getElementById('joy'),stick=document.getElementById('stick');
+let joyId=null,joyCX=0,joyCY=0;
+function joyPos(e){const r=joy.getBoundingClientRect();return{cx:r.left+r.width/2,cy:r.top+r.height/2,R:r.width/2};}
+joy.addEventListener('pointerdown',e=>{joyId=e.pointerId;joy.setPointerCapture(e.pointerId);const p=joyPos();joyCX=p.cx;joyCY=p.cy;moveStick(e);});
+joy.addEventListener('pointermove',e=>{if(e.pointerId===joyId)moveStick(e);});
+function moveStick(e){const p=joyPos();let dx=e.clientX-p.cx,dy=e.clientY-p.cy;const d=Math.hypot(dx,dy),max=p.R-10;if(d>max){dx*=max/d;dy*=max/d;}stick.style.transform=`translate(${dx}px,${dy}px)`;joyVec={x:dx/max,y:dy/max};}
+function endJoy(e){if(e.pointerId===joyId){joyId=null;joyVec={x:0,y:0};stick.style.transform='translate(0,0)';}}
+joy.addEventListener('pointerup',endJoy);joy.addEventListener('pointercancel',endJoy);
+// tap-to-move (phone): drag on canvas moves player toward touch
+let touchTarget=null;
+canvas.addEventListener('pointerdown',e=>{if(!started||won)return;const pt=toWorld(e);touchTarget=pt;});
+canvas.addEventListener('pointermove',e=>{if(e.buttons&&touchTarget){touchTarget=toWorld(e);}});
+window.addEventListener('pointerup',()=>{touchTarget=null;});
+function toWorld(e){const r=canvas.getBoundingClientRect();const px=(e.clientX-r.left)*DPR,py=(e.clientY-r.top)*DPR;return{x:(px-offX)/scale,y:(py-offY)/scale};}
+
+function collide(nx,ny){
+  const r=player.r-4;
+  // walls
+  for(const w of walls){if(nx+r>w.x&&nx-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)return true;}
+  // shelves
+  for(const s of shelves){if(nx+r>s.x&&nx-r<s.x+s.w&&ny+r>s.y&&ny-r<s.y+s.h)return true;}
+  // counter (block walking through)
+  if(nx+r>counter.x&&nx-r<counter.x+counter.w&&ny+r>counter.y&&ny-r<counter.y+counter.h)return true;
+  if(nx<30||nx>450||ny<34||ny>588)return true;
+  return false;
+}
+
+function showToast(t,ms=1600){toast.textContent=t;toast.style.opacity=1;clearTimeout(showToast._t);showToast._t=setTimeout(()=>toast.style.opacity=0,ms);}
+
+function nearestSpot(){
+  let best=null,bd=52;
+  for(const s of spots){if(s.taken)continue;const d=Math.hypot(player.x-s.x,player.y-s.y);if(d<bd){bd=d;best=s;}}
+  return best;
+}
+function tryPick(){
+  if(!started||won)return;
+  const s=nearSpot;
+  if(!s){showToast('اقترب من منتج لالتقاطه 🤏');return;}
+  if(s.required){
+    if(cart.includes(s.id)){showToast('هذا في العربة already ✅');return;}
+    // take all spots of same id? No — take this one, mark all same id taken visually except keep others? Simpler: mark this taken, cart adds id, other dup spots become taken too (sold out)
+    cart.push(s.id);
+    spots.forEach(o=>{if(o.id===s.id)o.taken=true;});
+    renderList(cart); showToast(`${s.emoji} ${s.name} في العربة! ✅`);
+    popText(player.x,player.y-28,`+${s.emoji}`);
+    if(cart.length===ITEMS.length){showToast('🎉 اكتملت القائمة! اذهب للكاونتر 💰',2600);popText(counter.x+130,counter.y-20,'💰 اذهب هنا!');}
+  }else{
+    showToast(`⛔ ${s.name} ليس في القائمة!`,1500);
+    popText(s.x,s.y-24,'❌');
+  }
+}
+btnPick.addEventListener('click',tryPick);
+btnBuy.addEventListener('click',()=>{
+  if(!started||won)return;
+  if(!nearCounter){showToast('اذهب إلى الكاونتر أولاً 🏃‍♂️💨');return;}
+  if(cart.length<ITEMS.length){showToast(`القائمة ناقصة ${cart.length}/${ITEMS.length} 🧾`);return;}
+  openPay();
+});
+document.getElementById('startBtn').addEventListener('click',()=>{startOverlay.classList.add('hidden');started=true;showToast('اجمع: 🥛 🍞 🌴 🍵',2000);});
+document.getElementById('continueBtn').addEventListener('click',()=>payOverlay.classList.add('hidden'));
+document.getElementById('payBtn').addEventListener('click',win);
+document.getElementById('replayBtn').addEventListener('click',()=>{location.reload();});
+
+function receiptHTML(){
+  const rows=ITEMS.map(i=>`${i.en.padEnd(8,'.')} ${i.price.toFixed(2)}`).join('\n');
+  return `**** DUKKAN SHABI ****\n${rows}\n------------------------\nTOTAL...... ${TOTAL.toFixed(2)} SAR\nCASH....... ${TOTAL.toFixed(2)} SAR\n*** SHUKRAN! MA'A SALAMA ***`;
+}
+function openPay(){document.getElementById('receipt').textContent=receiptHTML();payOverlay.classList.remove('hidden');}
+function win(){
+  payOverlay.classList.add('hidden');won=true;
+  document.getElementById('winReceipt').textContent=receiptHTML()+'\nSTATUS: PAID ✅';
+  winOverlay.classList.remove('hidden');confettiBurst();
+}
+
+// floating texts
+let pops=[];
+function popText(x,y,t){pops.push({x,y,t,life:1.2});}
+
+// confetti
+const cCanvas=document.getElementById('confetti'),cCtx=cCanvas.getContext('2d');
+let parts=[];
+function sizeConfetti(){const r=zone.getBoundingClientRect();cCanvas.width=r.width;cCanvas.height=r.height;}
+window.addEventListener('resize',sizeConfetti);
+function confettiBurst(){sizeConfetti();parts=[];const cols=['#f59e0b','#22c55e','#ef4444','#3b82f6','#eab308','#fff'];for(let i=0;i<160;i++)parts.push({x:cCanvas.width/2,y:cCanvas.height*0.35,vx:(Math.random()-0.5)*9,vy:Math.random()*-8-2,g:0.28,s:Math.random()*7+3,c:cols[i%cols.length],r:Math.random()*6.28,life:2.5+Math.random()*1.5});}
+
+// loop
+let last=performance.now(),t=0;
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;t+=dt;
+  if(started&&!won){
+    let ix=0,iy=0;
+    if(keys['a']||keys['arrowleft'])ix-=1; if(keys['d']||keys['arrowright'])ix+=1;
+    if(keys['w']||keys['arrowup'])iy-=1; if(keys['s']||keys['arrowdown'])iy+=1;
+    ix+=joyVec.x; iy+=joyVec.y;
+    if(touchTarget){const dx=touchTarget.x-player.x,dy=touchTarget.y-player.y,d=Math.hypot(dx,dy);if(d>10){ix+=dx/d;iy+=dy/d;}else{touchTarget=null;}}
+    const m=Math.hypot(ix,iy);if(m>1){ix/=m;iy/=m;}
+    if(ix!==0)player.face=ix>0?1:-1;
+    const nx=player.x+ix*player.speed*dt,ny=player.y+iy*player.speed*dt;
+    if(!collide(nx,player.y))player.x=nx;
+    if(!collide(player.x,ny))player.y=ny;
+    player.x=Math.max(30,Math.min(450,player.x));player.y=Math.max(34,Math.min(588,player.y));
+    nearSpot=nearestSpot();
+    nearCounter=(player.x>counterZone.x&&player.x<counterZone.x+counterZone.w&&player.y>counterZone.y-10&&player.y<counterZone.y+counterZone.h+70);
+    if(nearSpot&&!cart.includes(nearSpot.id)&&nearSpot.required)btnPick.classList.add('ready');else btnPick.classList.remove('ready');
+    btnPick.textContent=nearSpot?`خذ ${nearSpot.emoji}`:'خذ 🤏';
+    btnBuy.classList.toggle('ready',cart.length===ITEMS.length&&nearCounter);
+  }
+  draw();
+  // confetti update
+  if(parts.length){sizeConfettiOnce();cCtx.clearRect(0,0,cCanvas.width,cCanvas.height);parts=parts.filter(p=>p.life>0);parts.forEach(p=>{p.life-=dt;p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.r+=0.1;cCtx.save();cCtx.translate(p.x,p.y);cCtx.rotate(p.r);cCtx.fillStyle=p.c;cCtx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6);cCtx.restore();});}
+  pops=pops.filter(p=>p.life>0);pops.forEach(p=>p.life-=dt);
+  requestAnimationFrame(frame);
+}
+let sized=false;function sizeConfettiOnce(){if(!sized){sizeConfetti();sized=true;}}
+
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function draw(){
+  resize._c=resize._c||0;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const r=zone.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);
+  ctx.setTransform(scale,0,0,scale,offX,offY);
+  // floor (dukkan tiles)
+  ctx.fillStyle='#d9a75f';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#c9964f';
+  for(let y=18;y<H-18;y+=40)for(let x=18;x<W-18;x+=40){if(((x+y)/40)%2<1)ctx.fillRect(x,y,38,38);}
+  // carpet runner
+  ctx.fillStyle='#991b1b';rr(215,18,50,560,10);ctx.fill();
+  ctx.fillStyle='#fbbf24';for(let y=40;y<570;y+=34)ctx.fillRect(232,y,16,8);
+  // walls
+  ctx.fillStyle='#5d3a17';walls.forEach(w=>{ctx.fillRect(w.x,w.y,w.w,w.h);});
+  ctx.fillStyle='#fde68a';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('🏪 دكان شعبي — البقالة 🏪',240,14);
+  // shelves
+  shelves.forEach((s,i)=>{
+    ctx.fillStyle='rgba(0,0,0,.25)';rr(s.x+3,s.y+5,s.w,s.h,10);ctx.fill();
+    ctx.fillStyle='#7c4a1e';rr(s.x,s.y,s.w,s.h,10);ctx.fill();
+    ctx.fillStyle='#a16207';rr(s.x,s.y,s.w,12,6);ctx.fill();
+    ctx.fillStyle='#ffedd5';ctx.font='bold 10px sans-serif';ctx.fillText(s.label,s.x+s.w/2,s.y+s.h-8);
+  });
+  // spots
+  spots.forEach(s=>{
+    const bob=Math.sin(t*3+s.bob)*3;
+    if(s.taken){
+      ctx.globalAlpha=0.35;ctx.font='22px serif';ctx.textAlign='center';ctx.fillText('▢',s.x,s.y+bob);ctx.globalAlpha=1;
+      return;
+    }
+    // highlight if near
+    if(s===nearSpot){ctx.fillStyle='rgba(34,197,94,.35)';ctx.beginPath();ctx.arc(s.x,s.y-4+bob,26,0,7);ctx.fill();
+      ctx.strokeStyle='#22c55e';ctx.lineWidth=3;ctx.beginPath();ctx.arc(s.x,s.y-4+bob,26,0,7);ctx.stroke();}
+    else if(s.required&&!cart.includes(s.id)){ctx.fillStyle='rgba(245,158,11,.3)';ctx.beginPath();ctx.arc(s.x,s.y-4+bob,22,0,7);ctx.fill();}
+    // plate
+    ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(s.x,s.y+12,18,6,0,0,7);ctx.fill();
+    ctx.fillStyle=s.color||'#fff';ctx.beginPath();ctx.arc(s.x,s.y+bob,17,0,7);ctx.fill();
+    ctx.lineWidth=2.5;ctx.strokeStyle='#5d3a17';ctx.stroke();
+    ctx.font='22px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s.emoji,s.x,s.y+bob+1);
+    if(s.required&&!cart.includes(s.id)){ctx.font='bold 10px sans-serif';ctx.fillStyle='#14532d';ctx.fillText(s.price.toFixed(2),s.x,s.y+24);}
+    ctx.textBaseline='alphabetic';
+  });
+  // counter zone highlight
+  if(cart.length===ITEMS.length){ctx.fillStyle=`rgba(245,158,11,${0.18+0.1*Math.sin(t*4)})`;ctx.fillRect(counterZone.x,counterZone.y,counterZone.w,counterZone.h);}
+  // counter
+  ctx.fillStyle='rgba(0,0,0,.25)';rr(counter.x+4,counter.y+6,counter.w,counter.h,12);ctx.fill();
+  ctx.fillStyle='#92400e';rr(counter.x,counter.y,counter.w,counter.h,12);ctx.fill();
+  ctx.fillStyle='#d9a441';rr(counter.x,counter.y,counter.w,20,8);ctx.fill();
+  ctx.fillStyle='#451a03';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('💰 الكاونتر — Purchase هنا',counter.x+counter.w/2,counter.y+15);
+  ctx.font='26px serif';ctx.fillText('🧔🏽‍♂️',counter.x+counter.w/2,counter.y+46);
+  ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.fillText(fmt(TOTAL),counter.x+counter.w/2,counter.y+60);
+  // player + cart
+  const p=player;
+  ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(p.x,p.y+20,20,7,0,0,7);ctx.fill();
+  // cart
+  ctx.font='30px serif';ctx.textAlign='center';ctx.fillText('🛒',p.x-14*p.face,p.y+12);
+  // body
+  ctx.fillStyle='#1d4ed8';ctx.beginPath();ctx.arc(p.x,p.y,14,0,7);ctx.fill();
+  ctx.font='20px serif';ctx.fillText('🧑🏻',p.x,p.y+2);
+  // cart count badge
+  if(cart.length){ctx.fillStyle='#dc2626';ctx.beginPath();ctx.arc(p.x+16,p.y-14,11,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.fillText(cart.length,p.x+16,p.y-10);}
+  // direction hint arrow to counter when complete
+  if(cart.length===ITEMS.length&&!won){
+    const dx=(counter.x+130)-p.x,dy=(counter.y)-p.y,d=Math.hypot(dx,dy)||1;
+    ctx.fillStyle='#f59e0b';ctx.beginPath();
+    const ax=p.x+dx/d*34,ay=p.y+dy/d*34-6;
+    ctx.moveTo(ax,ay-10);ctx.lineTo(ax-7,ay+4);ctx.lineTo(ax+7,ay+4);ctx.closePath();ctx.fill();
+  }
+  // pops
+  ctx.font='bold 18px sans-serif';ctx.textAlign='center';
+  pops.forEach(p2=>{ctx.globalAlpha=Math.min(1,p2.life);ctx.fillStyle='#14532d';ctx.fillText(p2.t,p2.x,p2.y-(1.2-p2.life)*30);ctx.globalAlpha=1;});
+  // vignette text near spot
+  if(nearSpot&&!nearSpot.taken){
+    ctx.fillStyle='rgba(0,0,0,.75)';const label=nearSpot.required?`${nearSpot.emoji} ${nearSpot.name} — ${nearSpot.price.toFixed(2)} SAR ✅`:`${nearSpot.emoji} ${nearSpot.name} ⛔ ليس في القائمة`;
+    ctx.font='bold 13px sans-serif';const wdt=ctx.measureText(label).width+20;
+    rr(nearSpot.x-wdt/2,nearSpot.y-58,wdt,24,12);ctx.fill();
+    ctx.fillStyle=nearSpot.required?'#86efac':'#fca5a5';ctx.fillText(label,nearSpot.x,nearSpot.y-41);
+  }
+}
+resize();sizeConfetti();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
