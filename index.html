@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>🚀 جامع النجوم | لعبة السفينة الفضائية</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg1:#0b1026; --bg2:#1b1f4b; --accent:#ffd54a; --accent2:#4dd0ff;
+    --card:rgba(255,255,255,.08); --border:rgba(255,255,255,.16);
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:"Segoe UI", Tahoma, Arial, sans-serif;
+    background:radial-gradient(1200px 800px at 70% -10%, #2b2f7a 0%, var(--bg1) 55%, #05070f 100%);
+    color:#fff; overflow:hidden; user-select:none;
+  }
+  #stars-bg{ position:fixed; inset:0; z-index:0; opacity:.7; pointer-events:none; }
+  .wrap{ position:relative; z-index:1; height:100dvh; max-width:560px; margin:0 auto; display:flex; flex-direction:column; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  header{
+    display:flex; gap:8px; align-items:stretch; justify-content:space-between;
+  }
+  .hud{
+    flex:1; background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:8px 10px; text-align:center; backdrop-filter:blur(8px);
+  }
+  .hud small{ display:block; font-size:11px; opacity:.75; }
+  .hud b{ font-size:20px; font-variant-numeric:tabular-nums; }
+  #time-box.low b{ color:#ff6b6b; animation:pulse .6s infinite alternate; }
+  @keyframes pulse{ from{transform:scale(1)} to{transform:scale(1.18)} }
+  #game-card{
+    position:relative; flex:1; margin-top:10px; border-radius:18px; overflow:hidden;
+    border:1px solid var(--border); background:linear-gradient(180deg,#0d1230 0%,#0a0e28 60%,#131a4a 100%);
+    box-shadow:0 12px 40px rgba(0,0,0,.45); touch-action:none;
+  }
+  canvas{ display:block; width:100%; height:100%; }
+  .overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(5,8,20,.78); backdrop-filter:blur(6px); padding:20px; text-align:center;
+    transition:opacity .25s; z-index:5;
+  }
+  .overlay.hidden{ opacity:0; pointer-events:none; }
+  .panel{
+    width:100%; max-width:420px; background:rgba(20,26,60,.95); border:1px solid var(--border);
+    border-radius:20px; padding:22px 18px; box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .panel h1{ font-size:26px; margin-bottom:6px; }
+  .panel h1 .ship{ display:inline-block; animation:float 2s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-8px) rotate(6deg)} }
+  .panel p{ font-size:14px; line-height:1.9; opacity:.92; }
+  .row{ display:flex; gap:8px; margin-top:12px; }
+  .row.two > *{ flex:1; }
+  .seg-label{ font-size:12px; opacity:.8; margin:12px 0 6px; }
+  .seg{ display:flex; gap:6px; }
+  .seg button{
+    flex:1; padding:9px 4px; border-radius:12px; border:1px solid var(--border);
+    background:rgba(255,255,255,.07); color:#fff; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .seg button.active{ background:var(--accent); color:#222; border-color:var(--accent); }
+  .btn{
+    display:block; width:100%; margin-top:12px; padding:13px; border:none; border-radius:14px;
+    font-size:17px; font-weight:800; cursor:pointer; color:#1a1400;
+    background:linear-gradient(180deg,#ffe27a,#ffc93c); box-shadow:0 6px 0 #b98a12, 0 10px 24px rgba(255,200,50,.35);
+  }
+  .btn:active{ transform:translateY(3px); box-shadow:0 2px 0 #b98a12; }
+  .btn.ghost{ background:rgba(255,255,255,.1); color:#fff; box-shadow:none; border:1px solid var(--border); font-size:14px; }
+  .keys{ font-size:12px; opacity:.7; margin-top:10px; line-height:1.8; }
+  #final-score{ font-size:52px; font-weight:900; color:var(--accent); line-height:1; margin:8px 0; }
+  #new-record{ display:none; background:#ff4757; color:#fff; font-weight:800; font-size:13px; padding:5px 14px; border-radius:99px; margin:6px auto 0; width:fit-content; animation:pulse .5s infinite alternate; }
+  .controls{
+    display:flex; gap:10px; margin-top:10px;
+  }
+  .ctl{
+    flex:1; padding:14px; font-size:22px; border-radius:14px; border:1px solid var(--border);
+    background:var(--card); color:#fff; cursor:pointer; backdrop-filter:blur(8px);
+  }
+  .ctl:active{ background:rgba(255,255,255,.22); }
+  #pause-btn{
+    position:absolute; top:10px; left:10px; z-index:4; width:40px; height:40px; border-radius:12px;
+    border:1px solid var(--border); background:rgba(0,0,0,.45); color:#fff; font-size:17px; cursor:pointer;
+  }
+  .hint{ text-align:center; font-size:11px; opacity:.6; margin-top:8px; }
+  kbd{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:6px; padding:1px 7px; font-size:11px; }
+</style>
+</head>
+<body>
+<canvas id="stars-bg"></canvas>
+<div class="wrap">
+  <header>
+    <div class="hud" id="score-box"><small>⭐ النقاط</small><b id="score">0</b></div>
+    <div class="hud" id="time-box"><small>⏱️ الوقت</small><b id="time">60</b></div>
+    <div class="hud"><small>🏆 الأفضل</small><b id="best">0</b></div>
+  </header>
+
+  <div id="game-card">
+    <canvas id="game"></canvas>
+    <button id="pause-btn" title="إيقاف مؤقت">⏸️</button>
+
+    <!-- شاشة البداية -->
+    <div class="overlay" id="start-screen">
+      <div class="panel">
+        <h1><span class="ship">🚀</span> جامع النجوم</h1>
+        <p>حرّك السفينة <b>يميناً ويساراً</b> والتقط النجوم المتساقطة ⭐<br>كل نجمة = <b>نقطة +1</b> قبل انتهاء الوقت!</p>
+        <div class="seg-label">⏱️ مدة اللعب</div>
+        <div class="seg" id="dur-seg">
+          <button data-dur="30">30 ثانية</button>
+          <button data-dur="60" class="active">60 ثانية</button>
+          <button data-dur="90">90 ثانية</button>
+        </div>
+        <div class="seg-label">🎚️ مستوى الصعوبة</div>
+        <div class="seg" id="diff-seg">
+          <button data-diff="easy">😊 سهل</button>
+          <button data-diff="medium" class="active">🙂 متوسط</button>
+          <button data-diff="hard">😈 صعب</button>
+        </div>
+        <button class="btn" id="start-btn">▶️ ابدأ اللعب</button>
+        <div class="keys"><kbd>◀</kbd> <kbd>▶</kbd> أو <kbd>A</kbd> <kbd>D</kbd> للتحرك • اسحب بإصبعك على الجوال 📱<br>احذر النيازك ☄️ فهي تنقص نقطة!</div>
+      </div>
+    </div>
+
+    <!-- شاشة النهاية -->
+    <div class="overlay hidden" id="end-screen">
+      <div class="panel">
+        <h1>⏰ انتهى الوقت!</h1>
+        <div id="new-record">🎉 رقم قياسي جديد!</div>
+        <div id="final-score">0</div>
+        <p id="final-msg">أحسنت! 🌟</p>
+        <div class="row two">
+          <button class="btn ghost" id="menu-btn">🏠 القائمة</button>
+          <button class="btn" id="again-btn" style="margin-top:0">🔄 العب مجدداً</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- إيقاف مؤقت -->
+    <div class="overlay hidden" id="pause-screen">
+      <div class="panel">
+        <h1>⏸️ إيقاف مؤقت</h1>
+        <p>خذ نفساً يا قائد! 🚀</p>
+        <button class="btn" id="resume-btn">▶️ استئناف</button>
+        <button class="btn ghost" id="quit-btn">🏳️ إنهاء اللعبة</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" id="left-btn">◀️</button>
+    <button class="ctl" id="right-btn">▶️</button>
+  </div>
+  <div class="hint">استخدم الأسهم أو الأزرار أو اسحب السفينة مباشرة</div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const canvas = $("game"), ctx = canvas.getContext("2d");
+const card = $("game-card");
+
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const r = card.getBoundingClientRect();
+  W = Math.max(280, r.width); H = Math.max(320, r.height);
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+// خلفية نجوم ثابتة
+const bg = $("stars-bg"), bctx = bg.getContext("2d");
+function paintBg(){
+  bg.width = innerWidth; bg.height = innerHeight;
+  bctx.fillStyle = "#fff";
+  for(let i=0;i<140;i++){
+    bctx.globalAlpha = Math.random()*0.8+0.1;
+    const s = Math.random()*2+0.5;
+    bctx.fillRect(Math.random()*bg.width, Math.random()*bg.height, s, s);
+  }
+  bctx.globalAlpha = 1;
+}
+paintBg(); window.addEventListener("resize", paintBg);
+
+// ===== الصوت (WebAudio بدون ملفات) =====
+let AC = null;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==="suspended") AC.resume(); return AC; }
+function beep(freq, dur=0.12, type="sine", vol=0.18, slide=0){
+  const ac = audio(); if(!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, ac.currentTime);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide), ac.currentTime+dur);
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+dur);
+  o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+dur);
+}
+const sfx = {
+  collect(){ beep(660+Math.random()*300, .14, "sine", .2, 400); },
+  gold(){ beep(880,.12,"triangle",.22); setTimeout(()=>beep(1320,.18,"triangle",.22),90); },
+  hit(){ beep(180,.3,"sawtooth",.22,-100); },
+  click(){ beep(520,.07,"square",.1); },
+  tick(){ beep(1000,.06,"square",.12); },
+  over(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.22,"triangle",.2),i*160)); }
+};
+
+// ===== حالة اللعبة =====
+const DIFFS = {
+  easy:   { spawn: 0.028, speedMin: 1.6, speedMax: 3.0, meteor: 0.06, shipSpeed: 6.2 },
+  medium: { spawn: 0.042, speedMin: 2.2, speedMax: 4.2, meteor: 0.12, shipSpeed: 7.0 },
+  hard:   { spawn: 0.058, speedMin: 3.0, speedMax: 5.6, meteor: 0.20, shipSpeed: 7.8 }
+};
+let state = "menu"; // menu | playing | paused | over
+let score=0, timeLeft=60, duration=60, diffKey="medium";
+let ship = { x:0, w:56, h:26, tilt:0 };
+let items = [], parts = [], shake = 0, elapsed = 0, lastTickSecond = -1;
+let keys = { left:false, right:false };
+let best = +(localStorage.getItem("star-collector-best")||0);
+$("best").textContent = best;
+
+function diff(){ return DIFFS[diffKey]; }
+
+// توليد عنصر ساقط
+function spawnItem(){
+  const d = diff();
+  const r = Math.random();
+  const isMeteor = r < d.meteor;
+  const isGold = !isMeteor && r > 0.93; // ~7% ذهبية
+  const speedBoost = 1 + (elapsed / duration) * 0.7; // تزداد الصعوبة مع الوقت
+  items.push({
+    x: 18 + Math.random()*(W-36),
+    y: -24,
+    vy: (d.speedMin + Math.random()*(d.speedMax-d.speedMin)) * speedBoost,
+    sway: Math.random()*1.4,
+    phase: Math.random()*Math.PI*2,
+    rot: Math.random()*Math.PI*2,
+    vr: (Math.random()-.5)*0.08,
+    kind: isMeteor ? "meteor" : (isGold ? "gold" : "star"),
+    r: isMeteor ? 15 : (isGold ? 15 : 12)
+  });
+}
+
+function reset(dur, dk){
+  duration = dur; diffKey = dk; score = 0; timeLeft = dur; elapsed = 0;
+  items = []; parts = []; shake = 0; lastTickSecond = -1;
+  ship.x = W/2; ship.tilt = 0;
+  $("score").textContent = "0";
+  $("time").textContent = dur;
+  $("time-box").classList.remove("low");
+}
+
+function startGame(){
+  sfx.click();
+  const d = +document.querySelector("#dur-seg .active").dataset.dur;
+  const k = document.querySelector("#diff-seg .active").dataset.diff;
+  reset(d, k);
+  state = "playing";
+  $("start-screen").classList.add("hidden");
+  $("end-screen").classList.add("hidden");
+  $("pause-screen").classList.add("hidden");
+  $("pause-btn").textContent = "⏸️";
+}
+
+function endGame(){
+  state = "over";
+  sfx.over();
+  const isRecord = score > best;
+  if(isRecord){ best = score; localStorage.setItem("star-collector-best", best); }
+  $("best").textContent = best;
+  $("final-score").textContent = score + " ⭐";
+  $("new-record").style.display = isRecord && score>0 ? "block" : "none";
+  const rate = duration ? score/duration : 0;
+  $("final-msg").textContent =
+    score===0 ? "لم تلتقط أي نجمة! حاول مجدداً 💪" :
+    rate>1.2 ? "مذهل! أنت أسطورة الفضاء! 👑" :
+    rate>0.7 ? "رائع جداً! واصل التألق! 🌟" :
+    "أحسنت! حاول جمع المزيد! 🚀";
+  setTimeout(()=> $("end-screen").classList.remove("hidden"), 400);
+  burst(W/2, H/2, 60);
+}
+
+// انفجار جزيئات
+function burst(x,y,n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = Math.random()*4+1;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,decay:0.015+Math.random()*0.02,
+      color:["#ffd54a","#fff","#4dd0ff","#ff9ff3"][i%4], size:Math.random()*4+2});
+  }
+}
+
+function collect(it){
+  if(it.kind==="star"){ score+=1; $("score").textContent=score; sfx.collect(); burst(it.x,it.y,10); }
+  else if(it.kind==="gold"){ score+=3; $("score").textContent=score; sfx.gold(); burst(it.x,it.y,22); floatText(it.x,it.y,"+3"); }
+  else { score=Math.max(0,score-1); $("score").textContent=score; sfx.hit(); shake=10; burst(it.x,it.y,16); floatText(it.x,it.y,"-1"); }
+}
+// نصوص عائمة
+let floats = [];
+function floatText(x,y,t){ floats.push({x,y,t,life:1}); }
+
+function update(dt){
+  elapsed += dt;
+  // الوقت
+  timeLeft -= dt;
+  if(timeLeft <= 5.5 && timeLeft > 0){
+    $("time-box").classList.add("low");
+    const s = Math.ceil(timeLeft);
+    if(s !== lastTickSecond){ lastTickSecond = s; sfx.tick(); }
+  }
+  if(timeLeft <= 0){ timeLeft = 0; $("time").textContent = "0"; endGame(); return; }
+  $("time").textContent = Math.ceil(timeLeft);
+
+  // حركة السفينة
+  const d = diff();
+  let vx = 0;
+  if(keys.left) vx -= d.shipSpeed;
+  if(keys.right) vx += d.shipSpeed;
+  ship.x += vx;
+  ship.tilt += ((keys.left?-0.25:keys.right?0.25:0) - ship.tilt) * 0.2;
+  ship.x = Math.max(ship.w/2+4, Math.min(W-ship.w/2-4, ship.x));
+
+  // توليد
+  const dynamicSpawn = d.spawn * (1 + (elapsed/duration)*0.8);
+  if(Math.random() < dynamicSpawn * (dt*60)) spawnItem();
+
+  // تحديث العناصر
+  const shipY = H - 56;
+  for(let i=items.length-1;i>=0;i--){
+    const it = items[i];
+    it.phase += 0.05; it.x += Math.sin(it.phase)*it.sway*0.4;
+    it.y += it.vy; it.rot += it.vr;
+    // التقاط: قرب من السفينة
+    const dx = Math.abs(it.x - ship.x), dy = Math.abs(it.y - shipY);
+    if(dy < 30 && dx < (ship.w/2 + it.r)){
+      collect(it); items.splice(i,1); continue;
+    }
+    if(it.y > H+30) items.splice(i,1);
+  }
+  // جزيئات
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.life-=p.decay;
+    if(p.life<=0) parts.splice(i,1);
+  }
+  for(let i=floats.length-1;i>=0;i--){ const f=floats[i]; f.y-=1.2; f.life-=0.03; if(f.life<=0) floats.splice(i,1); }
+  if(shake>0) shake *= 0.88;
+}
+
+function drawStar(x,y,r,rot,color){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+  ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12;
+  ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a = (i*4*Math.PI)/5 - Math.PI/2;
+    const px = Math.cos(a)*r, py = Math.sin(a)*r;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+    const a2 = a + (2*Math.PI)/10;
+    ctx.lineTo(Math.cos(a2)*r*0.45, Math.sin(a2)*r*0.45);
+  }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(shake>0.5) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+
+  // العناصر
+  for(const it of items){
+    if(it.kind==="star") drawStar(it.x,it.y,it.r,it.rot,"#ffd54a");
+    else if(it.kind==="gold") drawStar(it.x,it.y,it.r+3,it.rot,"#fff176");
+    else {
+      // نيزك
+      ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.rot);
+      ctx.fillStyle = "#8d6e63"; ctx.shadowColor="#ff5722"; ctx.shadowBlur=14;
+      ctx.beginPath(); ctx.arc(0,0,it.r,0,7); ctx.fill();
+      ctx.fillStyle="#5d4037";
+      ctx.beginPath(); ctx.arc(-4,-3,4,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(5,4,3,0,7); ctx.fill();
+      // لهب
+      ctx.strokeStyle="rgba(255,150,50,.8)"; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(0,-it.r-2); ctx.lineTo(-5,-it.r-14); ctx.moveTo(0,-it.r-2); ctx.lineTo(5,-it.r-14); ctx.stroke();
+      ctx.restore();
+      ctx.font="14px sans-serif"; ctx.textAlign="center"; ctx.fillText("☄️", it.x, it.y-20);
+    }
+    if(it.kind==="gold"){ ctx.font="11px sans-serif"; ctx.textAlign="center"; ctx.fillStyle="#fff"; ctx.fillText("+3", it.x, it.y-20); }
+  }
+
+  // السفينة
+  const y = H - 56;
+  ctx.save(); ctx.translate(ship.x, y); ctx.rotate(ship.tilt);
+  // توهج المحرك
+  const flame = 10 + Math.random()*10;
+  const grad = ctx.createLinearGradient(0,10,0,10+flame+14);
+  grad.addColorStop(0,"#4dd0ff"); grad.addColorStop(1,"rgba(77,208,255,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.moveTo(-8,12); ctx.lineTo(0,12+flame+12); ctx.lineTo(8,12); ctx.closePath(); ctx.fill();
+  // الجسم
+  ctx.shadowColor="#4dd0ff"; ctx.shadowBlur=18;
+  ctx.fillStyle="#eceff1";
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(14,10); ctx.lineTo(0,6); ctx.lineTo(-14,10); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle="#4dd0ff";
+  ctx.beginPath(); ctx.arc(0,-4,6,0,7); ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.85)";
+  ctx.beginPath(); ctx.arc(-2,-6,2.2,0,7); ctx.fill();
+  // أجنحة
+  ctx.fillStyle="#ff5252";
+  ctx.fillRect(-24,2,10,8); ctx.fillRect(14,2,10,8);
+  ctx.restore();
+
+  // الجزيئات
+  for(const p of parts){
+    ctx.globalAlpha = Math.max(0,p.life);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x,p.y,p.size,p.size);
+  }
+  ctx.globalAlpha = 1;
+  // النصوص العائمة
+  ctx.textAlign="center"; ctx.font="bold 16px sans-serif";
+  for(const f of floats){
+    ctx.globalAlpha = Math.max(0,f.life);
+    ctx.fillStyle = f.t==="+3" ? "#ffe082" : "#ff8a80";
+    ctx.fillText(f.t, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // خط النهاية (منطقة الالتقاط)
+  ctx.strokeStyle="rgba(77,208,255,.25)"; ctx.setLineDash([6,6]); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(8,H-84); ctx.lineTo(W-8,H-84); ctx.stroke(); ctx.setLineDash([]);
+}
+
+// حلقة اللعبة
+let last = 0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (t-last)/1000 || 0.016); last = t;
+  if(state==="playing"){ update(dt); draw(); }
+  else if(state==="menu" || state==="over"){ drawIdle(t); }
+  else if(state==="paused"){ /* ثابت */ }
+}
+function drawIdle(t){
+  ctx.clearRect(0,0,W,H);
+  // نجوم تتساقط للزينة
+  if(!drawIdle.items) drawIdle.items = [];
+  if(Math.random()<0.06 && drawIdle.items.length<24)
+    drawIdle.items.push({x:Math.random()*W,y:-20,vy:1+Math.random()*2,r:8+Math.random()*6,rot:Math.random()*6});
+  for(const it of drawIdle.items){ it.y+=it.vy; it.rot+=0.02; drawStar(it.x,it.y,it.r,it.rot,"rgba(255,213,74,.85)"); }
+  drawIdle.items = drawIdle.items.filter(i=>i.y<H+30);
+  const y = H-56;
+  const cx = W/2 + Math.sin(t/900)*40;
+  ship.x = cx;
+  ctx.save(); ctx.translate(cx,y);
+  ctx.fillStyle="#eceff1";
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(14,10); ctx.lineTo(0,6); ctx.lineTo(-14,10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#4dd0ff"; ctx.beginPath(); ctx.arc(0,-4,6,0,7); ctx.fill();
+  ctx.restore();
+}
+
+// ===== التحكم =====
+window.addEventListener("keydown", e=>{
+  if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") keys.left=true;
+  if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") keys.right=true;
+  if(e.key===" "||e.key==="Enter"){ if(state==="menu") startGame(); else if(state==="over") startGame(); }
+  if(e.key==="p"||e.key==="P"||e.key==="Escape") togglePause();
+  if(["ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+});
+window.addEventListener("keyup", e=>{
+  if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") keys.left=false;
+  if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") keys.right=false;
+});
+
+// سحب باللمس/الفأرة
+let dragging = false;
+function pointerX(e){
+  const r = canvas.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX);
+  return cx - r.left;
+}
+canvas.addEventListener("pointerdown", e=>{ dragging=true; ship.x = clampPointer(pointerX(e)); canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointermove", e=>{ if(dragging) ship.x = clampPointer(pointerX(e)); });
+window.addEventListener("pointerup", ()=> dragging=false);
+function clampPointer(x){ return Math.max(ship.w/2+4, Math.min(W-ship.w/2-4, x)); }
+// أزرار اللمس
+function hold(btn, key){
+  const on = e=>{ e.preventDefault(); keys[key]=true; audio(); };
+  const off = e=>{ e.preventDefault(); keys[key]=false; };
+  btn.addEventListener("pointerdown", on);
+  btn.addEventListener("pointerup", off);
+  btn.addEventListener("pointerleave", off);
+  btn.addEventListener("pointercancel", off);
+}
+hold($("left-btn"), "left"); hold($("right-btn"), "right");
+
+// أزرار الواجهة
+document.querySelectorAll("#dur-seg button").forEach(b=>b.onclick=()=>{ sfx.click(); document.querySelectorAll("#dur-seg button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); });
+document.querySelectorAll("#diff-seg button").forEach(b=>b.onclick=()=>{ sfx.click(); document.querySelectorAll("#diff-seg button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); });
+$("start-btn").onclick = startGame;
+$("again-btn").onclick = ()=>{ $("end-screen").classList.add("hidden"); startGame(); };
+$("menu-btn").onclick = ()=>{ sfx.click(); state="menu"; $("end-screen").classList.add("hidden"); $("start-screen").classList.remove("hidden"); };
+$("resume-btn").onclick = ()=> togglePause(true);
+$("quit-btn").onclick = ()=>{ sfx.click(); state="menu"; $("pause-screen").classList.add("hidden"); $("start-screen").classList.remove("hidden"); $("pause-btn").textContent="⏸️"; };
+$("pause-btn").onclick = ()=> togglePause();
+
+function togglePause(forceResume){
+  if(state==="playing" && !forceResume){
+    state="paused"; $("pause-screen").classList.remove("hidden"); $("pause-btn").textContent="▶️"; sfx.click();
+  } else if(state==="paused" || forceResume===true){
+    if(state!=="paused" && forceResume!==true) return;
+    state="playing"; $("pause-screen").classList.add("hidden"); $("pause-btn").textContent="⏸️"; sfx.click(); last=performance.now();
+  }
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden && state==="playing") togglePause(); });
+
+// تشغيل
+resize();
+setTimeout(resize, 100);
+reset(60,"medium");
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
