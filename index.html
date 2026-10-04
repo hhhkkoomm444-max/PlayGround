@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Baqala Tycoon — 3D Grocery Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif; background:#000; }
+  #stage { position:fixed; inset:0; overflow:hidden; perspective:1000px; }
+  #bg-wrap { position:absolute; inset:-3%; transform-style:preserve-3d; will-change:transform; transition:transform .15s ease-out; }
+  #bg { width:100%; height:100%; object-fit:cover; display:block; user-select:none; pointer-events:none; }
+  #vignette { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.35) 100%); }
+
+  /* --- Required overlays --- */
+  #shopping-list {
+    position:absolute; top:14px; left:14px; width:210px;
+    background:rgba(255,255,255,.96); border-radius:12px;
+    box-shadow:0 4px 18px rgba(0,0,0,.35); padding:10px 12px 12px;
+    z-index:10; user-select:none;
+  }
+  #shopping-list h2 { margin:0 0 8px; font-size:19px; font-weight:800; color:#1a1a1a; display:flex; align-items:center; gap:8px; }
+  #shopping-list h2 .clip { font-size:20px; }
+  .list-item { display:flex; align-items:center; gap:9px; padding:4px 0; font-size:16px; color:#222; cursor:pointer; }
+  .list-item .box { width:22px; height:22px; border-radius:6px; border:2px solid #bbb; display:flex; align-items:center; justify-content:center; background:#fff; flex:0 0 22px; font-size:15px; font-weight:900; }
+  .list-item.done .box { background:#22a355; border-color:#22a355; color:#fff; }
+  .list-item.done .name { text-decoration:line-through; opacity:.75; }
+  .list-item .price { margin-left:auto; font-size:12px; color:#666; font-weight:700; }
+
+  #logo {
+    position:absolute; top:10px; right:14px; z-index:10; text-align:right; line-height:.95;
+    font-weight:900; letter-spacing:.5px; user-select:none; pointer-events:none;
+    filter:drop-shadow(0 2px 0 rgba(0,0,0,.8)) drop-shadow(0 3px 6px rgba(0,0,0,.6));
+  }
+  #logo .l1 { display:block; font-size:34px; color:#39d353; -webkit-text-stroke:1px #0a3d1a; }
+  #logo .l2 { display:block; font-size:30px; color:#ffbe0b; -webkit-text-stroke:1px #5a3200; }
+
+  #day-pill {
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,.55); color:#fff; border:1px solid rgba(255,255,255,.25);
+    padding:6px 14px; border-radius:999px; font-size:14px; font-weight:700; z-index:10; white-space:nowrap;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Shelf buy buttons (gameplay, sits over shelves but below list/logo) */
+  #shelf-bar {
+    position:absolute; left:50%; transform:translateX(-50%);
+    top:23%; z-index:9; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
+    width:min(96vw,720px); padding:0 8px;
+  }
+  .buy-btn {
+    background:rgba(0,0,0,.55); color:#fff; border:1px solid rgba(255,255,255,.35);
+    border-radius:999px; padding:10px 12px; font-size:14px; font-weight:800;
+    cursor:pointer; backdrop-filter:blur(4px); touch-action:manipulation;
+  }
+  .buy-btn:active { transform:scale(.95); }
+  .buy-btn small { opacity:.8; font-weight:600; }
+
+  /* Bottom cart view */
+  #bottom-ui { position:absolute; left:0; right:0; bottom:0; z-index:10; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0)); }
+  #cart-view {
+    display:flex; gap:8px; overflow-x:auto; padding:6px 2px 8px; scrollbar-width:thin;
+    -webkit-overflow-scrolling:touch;
+  }
+  .cart-card {
+    flex:0 0 auto; min-width:118px; background:rgba(255,255,255,.95); border-radius:12px;
+    padding:8px 10px; display:flex; align-items:center; gap:8px;
+    box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:13px;
+  }
+  .cart-card .emo { font-size:24px; }
+  .cart-card .nm { font-weight:800; color:#222; }
+  .cart-card .pr { color:#555; font-size:12px; }
+  .qty { display:flex; align-items:center; gap:6px; margin-top:4px; }
+  .qty button { width:26px; height:26px; border-radius:8px; border:none; font-size:16px; font-weight:900; cursor:pointer; background:#eee; touch-action:manipulation; }
+  .qty button:active { transform:scale(.9); }
+  #cart-empty { color:#fff; font-size:14px; opacity:.9; padding:4px; text-shadow:0 1px 3px #000; }
+
+  #total-row { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:2px; }
+  #total { color:#fff; font-size:21px; font-weight:600; text-shadow:0 2px 6px rgba(0,0,0,.9); }
+  #purchase-btn {
+    background:#2e9e5b; color:#fff; border:none; border-radius:10px;
+    font-size:20px; font-weight:600; padding:10px 22px 10px 14px;
+    display:flex; align-items:center; gap:10px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.4); touch-action:manipulation; min-height:48px;
+  }
+  #purchase-btn:active { transform:scale(.97); background:#26874d; }
+  #purchase-btn .b-badge { width:28px; height:28px; border-radius:50%; background:#fff; color:#2e7d46; font-weight:900; display:flex; align-items:center; justify-content:center; font-size:16px; }
+
+  #toast {
+    position:absolute; left:50%; bottom:150px; transform:translateX(-50%) translateY(20px);
+    background:rgba(20,20,20,.92); color:#fff; padding:10px 18px; border-radius:999px;
+    font-size:15px; font-weight:600; opacity:0; transition:.25s; z-index:30; pointer-events:none;
+    max-width:92vw; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  #win {
+    position:absolute; inset:0; z-index:40; display:none;
+    background:rgba(0,0,0,.6); align-items:center; justify-content:center; padding:20px;
+  }
+  #win.show { display:flex; }
+  #win-card { background:#fff; border-radius:18px; padding:24px; max-width:380px; width:100%; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  #win-card h1 { margin:0 0 8px; }
+  #win-card p { color:#444; }
+  #next-day { background:#2e9e5b; color:#fff; border:none; border-radius:12px; font-size:18px; font-weight:800; padding:12px 24px; cursor:pointer; margin-top:12px; min-height:48px; }
+  .stars { font-size:34px; }
+
+  @media (max-width:600px) {
+    #shopping-list { width:172px; padding:8px 10px 10px; }
+    #shopping-list h2 { font-size:16px; }
+    .list-item { font-size:14px; }
+    #logo .l1 { font-size:26px; } #logo .l2 { font-size:23px; }
+    #total { font-size:18px; }
+    #purchase-btn { font-size:18px; padding:10px 16px 10px 12px; }
+    #shelf-bar { top:21%; }
+    .buy-btn { font-size:13px; padding:9px 10px; }
+    #day-pill { font-size:12px; top:auto; bottom:150px; display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg-wrap">
+    <img id="bg" src="assets/background.jpg" alt="Baqala store interior — 3D first-person view">
+  </div>
+  <div id="vignette"></div>
+
+  <!-- Shopping List (top-left) -->
+  <div id="shopping-list" aria-label="Shopping List">
+    <h2><span class="clip">📋</span> Shopping List</h2>
+    <div class="list-item" data-product="milk" role="checkbox" aria-checked="true" tabindex="0"><span class="box">✓</span><span class="name">Milk</span><span class="price">6.00</span></div>
+    <div class="list-item" data-product="bread" role="checkbox" aria-checked="false" tabindex="0"><span class="box"></span><span class="name">Bread</span><span class="price">4.25</span></div>
+    <div class="list-item" data-product="shampoo" role="checkbox" aria-checked="false" tabindex="0"><span class="box"></span><span class="name">Shampoo</span><span class="price">15.75</span></div>
+  </div>
+
+  <!-- Logo (top-right) -->
+  <div id="logo" aria-label="Baqala Tycoon"><span class="l1">Baqala</span><span class="l2">Tycoon</span></div>
+
+  <div id="day-pill">Day 1 &nbsp;•&nbsp; 💰 <span id="cash">120.00</span> SAR &nbsp;•&nbsp; ⭐ Level 1</div>
+
+  <!-- Quick-buy shelf buttons -->
+  <div id="shelf-bar" aria-label="Store shelves — tap to add to cart"></div>
+
+  <!-- Bottom cart + total + purchase -->
+  <div id="bottom-ui">
+    <div id="cart-view" aria-label="Shopping cart"></div>
+    <div id="total-row">
+      <div id="total">Total: 25.50 SAR</div>
+      <button id="purchase-btn"><span class="b-badge">B</span> Purchase</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="win" role="dialog" aria-modal="true">
+    <div id="win-card">
+      <div class="stars">⭐⭐⭐</div>
+      <h1>Shukran! 🙏</h1>
+      <p id="win-text">Purchase complete.</p>
+      <button id="next-day">Next Day →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const PRODUCTS = {
+    milk:    { name:'Milk',    price:6.00,  emoji:'🥛' },
+    bread:   { name:'Bread',   price:4.25,  emoji:'🍞' },
+    shampoo: { name:'Shampoo', price:15.75, emoji:'🧴' },
+    oil:     { name:'Oil',     price:12.00, emoji:'🛢️' },
+    tuna:    { name:'Tuna',    price:4.50,  emoji:'🥫' },
+    tissue:  { name:'Tissue',  price:3.00,  emoji:'🧻' }
+  };
+  // Initial cart totals exactly 25.50 SAR: milk 6 + oil 12 + tuna 4.5 + tissue 3
+  let cart = { milk:1, oil:1, tuna:1, tissue:1 };
+  let day = 1, cash = 120.00, level = 1;
+
+  const cartView = document.getElementById('cart-view');
+  const totalEl = document.getElementById('total');
+  const toastEl = document.getElementById('toast');
+  const shelfBar = document.getElementById('shelf-bar');
+  const cashEl = document.getElementById('cash');
+  let toastT = null;
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(()=>toastEl.classList.remove('show'), 2200);
+  }
+  function total(){ return Object.entries(cart).reduce((s,[k,q])=>s+PRODUCTS[k].price*q,0); }
+  function fmt(n){ return n.toFixed(2); }
+
+  function renderShelf(){
+    shelfBar.innerHTML = '';
+    Object.entries(PRODUCTS).forEach(([id,p])=>{
+      const b = document.createElement('button');
+      b.className = 'buy-btn';
+      b.innerHTML = p.emoji+' '+p.name+' <small>'+fmt(p.price)+'</small> +';
+      b.setAttribute('aria-label','Add '+p.name+' to cart');
+      b.onclick = ()=>{ cart[id]=(cart[id]||0)+1; render(); toast(p.emoji+' '+p.name+' added'); };
+      shelfBar.appendChild(b);
+    });
+  }
+
+  function render(){
+    // cart cards
+    cartView.innerHTML = '';
+    const ids = Object.keys(cart).filter(k=>cart[k]>0);
+    if(!ids.length){
+      const d=document.createElement('div'); d.id='cart-empty'; d.textContent='Cart is empty — tap a shelf item to add it.'; cartView.appendChild(d);
+    }
+    ids.forEach(id=>{
+      const p = PRODUCTS[id];
+      const card = document.createElement('div'); card.className='cart-card';
+      card.innerHTML = '<div class="emo">'+p.emoji+'</div><div><div class="nm">'+p.name+'</div><div class="pr">'+fmt(p.price)+' SAR</div><div class="qty"><button data-a="-" aria-label="Remove">−</button><b>'+cart[id]+'</b><button data-a="+" aria-label="Add">+</button></div></div>';
+      card.querySelector('[data-a="-"]').onclick = ()=>{ cart[id]--; if(cart[id]<=0) delete cart[id]; render(); };
+      card.querySelector('[data-a="+"]').onclick = ()=>{ cart[id]++; render(); };
+      cartView.appendChild(card);
+    });
+    totalEl.textContent = 'Total: '+fmt(total())+' SAR';
+
+    // shopping list check state
+    document.querySelectorAll('#shopping-list .list-item').forEach(el=>{
+      const id = el.dataset.product;
+      const done = (cart[id]||0)>0;
+      el.classList.toggle('done', done);
+      el.setAttribute('aria-checked', done?'true':'false');
+      el.querySelector('.box').textContent = done?'✓':'';
+    });
+  }
+
+  // tapping a list item adds it (convenient on phone/tablet)
+  document.querySelectorAll('#shopping-list .list-item').forEach(el=>{
+    const go = ()=>{
+      const id = el.dataset.product;
+      if(!(cart[id]>0)){ cart[id]=1; render(); toast(PRODUCTS[id].emoji+' '+PRODUCTS[id].name+' added'); }
+      else { toast(PRODUCTS[id].name+' already in cart ✓'); }
+    };
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
+  });
+
+  document.getElementById('purchase-btn').addEventListener('click', ()=>{
+    const need = ['milk','bread','shampoo'].filter(id=>!(cart[id]>0));
+    if(need.length){
+      toast('You still need: '+need.map(id=>PRODUCTS[id].name).join(', '));
+      // nudge shelf buttons
+      shelfBar.animate([{transform:'translateX(-50%) scale(1)'},{transform:'translateX(-50%) scale(1.04)'},{transform:'translateX(-50%) scale(1)'}],{duration:300});
+      return;
+    }
+    const t = total();
+    cash += t; level++;
+    cashEl.textContent = fmt(cash);
+    document.getElementById('win-text').textContent = 'Day '+day+' sales: '+fmt(t)+' SAR. Cash now '+fmt(cash)+' SAR. Your baqala grows! 🏪';
+    document.getElementById('win').classList.add('show');
+  });
+  document.getElementById('next-day').addEventListener('click', ()=>{
+    document.getElementById('win').classList.remove('show');
+    day++;
+    document.getElementById('day-pill').childNodes[0].textContent = 'Day '+day+'  •  ';
+    // rotate list slightly for replayability, but keep Milk/Bread/Shampoo on day 1 to match spec
+    cart = {}; render();
+    toast('Day '+day+': new customers arrived!');
+  });
+
+  // Subtle 3D parallax (mouse + touch drag + device tilt)
+  const wrap = document.getElementById('bg-wrap');
+  function tilt(x,y){ // x,y in [-1,1]
+    wrap.style.transform = 'rotateY('+(x*4)+'deg) rotateX('+(-y*3)+'deg) scale(1.03) translate('+(x*8)+'px,'+(y*8)+'px)';
+  }
+  window.addEventListener('pointermove', e=>{
+    const x = (e.clientX/window.innerWidth)*2-1;
+    const y = (e.clientY/window.innerHeight)*2-1;
+    tilt(x,y);
+  }, {passive:true});
+  window.addEventListener('deviceorientation', e=>{
+    if(e.gamma==null||e.beta==null) return;
+    tilt(Math.max(-1,Math.min(1,e.gamma/30)), Math.max(-1,Math.min(1,(e.beta-45)/30)));
+  }, {passive:true});
+
+  renderShelf(); render();
+  window.__baqala = { get cart(){return cart;}, get total(){return total();} };
+})();
+</script>
+</body>
+</html>
